@@ -1,0 +1,70 @@
+#!/bin/env python
+import os
+import sys
+curdir = os.path.dirname(os.path.abspath(__file__))
+print("Launching from dir {}".format(curdir))
+sys.path.append(curdir)
+
+
+from appJar import gui
+import serial
+from serial.serialutil import SerialException
+import time
+if os.name == 'nt':  # sys.platform == 'win32':
+    from serial.tools.list_ports_windows import comports
+elif os.name == 'posix':
+    from serial.tools.list_ports_posix import comports
+
+def setSerialPort(name):
+    portname = app.getOptionBox(name)
+    print("Setting serial port to {}".format(portname))
+    port.port = portname
+
+
+def closePort():
+    app.setStatusbar("Connected: No")
+    app.setStatusbarFg("red")
+    port.close()
+    return True
+
+ports = [p[0] for p in comports(False)]
+
+app = gui("Card Reader", "400x200")
+app.addMessage("title", "Choose the correct serial port for the reader, and then hold a card next to the reader to get it's number")
+app.setMessageWidth("title", 400)
+app.setMessageSticky("title", "both")
+app.addStatusbar(fields=1)
+app.setStatusbar("Connected: No", 0)
+app.setStatusbarFg("red", 0)
+app.addLabelOptionBox("Serial Port", ports)
+app.setOptionBoxChangeFunction("Serial Port", setSerialPort)
+app.addLabelEntry("Card Number")
+port = serial.Serial()
+port.baudrate = 115200
+port.timeout = 0.2
+port.port = len(ports)>0 and ports[0] or None
+
+def checkReader():
+    if not port.is_open:
+        try:
+            port.open()
+            time.sleep(2)
+            app.setStatusbar("Connected: Yes")
+            app.setStatusbarFg("green")
+        except SerialException:
+            print("Failed to open serial port")
+            closePort()
+            return
+    try:
+        cardid = port.readline().strip()
+    except SerialException:
+        closePort()
+        return
+    if cardid:
+        print(cardid)
+        app.setEntry("Card Number", cardid)
+
+app.registerEvent(checkReader)
+app.setStopFunction(closePort)
+print("Got ports {}".format(ports))
+app.go()
